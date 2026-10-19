@@ -56,7 +56,7 @@ const numeric = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i;
 
 export function parseNationalGridCsv(text: string): ParsedMeterFile {
   if (!text.replace(/^\uFEFF/, '').trim()) throw new Error('The CSV file is empty.');
-  let header: { length: number; date: number; time: number; usage: number } | null = null;
+  let header: { length: number; date: number; time: number; usage: number; intervalEnd: boolean } | null = null;
   let unsupported = false;
   const result: ParsedMeterFile = { readings: [], rowsReceived: 0, invalidRows: 0, dstInvalidRows: 0, firstTimestamp: null, lastTimestamp: null };
   const mode = { meterRows: false };
@@ -73,6 +73,7 @@ export function parseNationalGridCsv(text: string): ParsedMeterFile {
         length: columns.length, date: columns.indexOf('date'),
         time: columns.indexOf(format === 'A' ? 'time' : 'start time'),
         usage: columns.indexOf(format === 'A' ? 'usage (kwh)' : 'usage kwh'),
+        intervalEnd: format === 'A',
       };
       else if (columns.includes('date')) unsupported = true;
       if (header) mode.meterRows = true;
@@ -88,7 +89,12 @@ export function parseNationalGridCsv(text: string): ParsedMeterFile {
       if (instant.error === 'ambiguous' || instant.error === 'nonexistent') result.dstInvalidRows++;
       continue;
     }
-    const timestamp = instant.timestamp;
+    // Time-only exports label interval ends; Start Time exports already label starts.
+    // Resolve Eastern time first, then subtract elapsed minutes so midnight and
+    // DST transitions cannot apply the wrong local offset to the canonical start.
+    const timestamp = header.intervalEnd
+      ? new Date(Date.parse(instant.timestamp) - 15 * 60 * 1000).toISOString()
+      : instant.timestamp;
     result.readings.push({ timestamp, kwh });
     if (!result.firstTimestamp || timestamp < result.firstTimestamp) result.firstTimestamp = timestamp;
     if (!result.lastTimestamp || timestamp > result.lastTimestamp) result.lastTimestamp = timestamp;
