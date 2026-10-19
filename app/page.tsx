@@ -1,8 +1,11 @@
 'use client';
 
+import { useState } from 'react';
+import { EventHistory } from './event-history';
 import { AuthGate, SignOutControl } from './auth-gate';
 import { appliances, formatTime } from './appliance-timers';
 import { useQuickActions } from './use-quick-actions';
+import { ManualEvent } from './manual-event';
 
 type IconName = 'home' | 'washer' | 'dryer' | 'cooktop' | 'upload' | 'explore' | 'ask' | 'bolt';
 function Icon({ name, className = '' }: { name: IconName; className?: string }) {
@@ -23,14 +26,30 @@ export default function Home() {
 
 function Dashboard() {
   const { now, ready, error, pending, typeFor, runFor, toggle, restore } = useQuickActions();
-  return <div className="app-shell">
+  const [view, setView] = useState<'home' | 'manual' | 'history' | 'today' | 'bill'>('home');
+  const [saved, setSaved] = useState(false);
+  const goHome = () => setView('home');
+
+  if (view !== 'home') {
+    const title = { manual: 'Manual Add', history: 'History / Edit', today: 'Today Usage', bill: 'Bill Cycle Usage' }[view];
+    return <div className="app-shell secondary-shell">
+      <header className="secondary-header"><button type="button" className="back-home" onClick={goHome}>← Home</button><h1>{title}</h1></header>
+      <main className="secondary-main">
+        {view === 'manual' ? <ManualEvent onCancel={goHome} onSaved={() => { setSaved(true); goHome(); }}/>
+          : view === 'history' ? <EventHistory/>
+          : <section className="usage-placeholder"><p>No meter data</p><p>Usage details will appear here.</p></section>}
+      </main>
+    </div>;
+  }
+  return <div className="app-shell home-shell">
     <header><a className="brand" href="/" aria-label="Home Energy home"><span className="brand-icon"><Icon name="bolt"/></span><h1>Home Energy</h1></a><SignOutControl/></header>
-    <main>
+    <main className="home-main">
       <section className="summary" aria-label="Energy summary">
-        <div className="metric"><h2>TODAY SO FAR</h2><div className="energy"><span>--</span><span className="unit">kWh</span></div><p>No meter data</p></div>
-        <div className="metric"><h2>BILL CYCLE AVG</h2><div className="energy"><span>--</span><span className="unit">kWh/day</span></div></div>
+        <button type="button" className="metric" onClick={() => setView('today')} aria-label="Today Usage"><h2>TODAY SO FAR</h2><div className="energy"><span>--</span><span className="unit">kWh</span></div><p>No meter data <span aria-hidden="true">↗</span></p></button>
+        <button type="button" className="metric" onClick={() => setView('bill')} aria-label="Bill Cycle Usage"><h2>BILL CYCLE AVG</h2><div className="energy"><span>--</span><span className="unit">kWh/day</span></div><p>View cycle <span aria-hidden="true">↗</span></p></button>
       </section>
-      <section className="appliances" aria-labelledby="appliances-title"><h2 id="appliances-title">Appliances</h2><div className="appliance-grid">
+      <button className="upload" type="button"><Icon name="upload"/>Upload Meter Data</button>
+      <section className="appliances" aria-label="Quick actions"><div className="appliance-grid">
         {appliances.map(name => {
           const type = typeFor(name);
           const run = runFor(type);
@@ -38,21 +57,24 @@ function Dashboard() {
           const elapsed = run ? Math.max(0, Math.floor((now - Date.parse(run.started_at)) / 1000)) : 0;
           const remaining = run?.ended_at ? Math.max(0, Math.ceil((Date.parse(run.ended_at) - now) / 1000)) : null;
           const automatic = type?.quick_mode === 'auto_stop';
-          return <button key={name} type="button" className={`appliance ${name === 'Cooktop' ? 'wide' : ''} ${running ? 'running' : ''}`} disabled={!ready || !type || !!pending[name]} aria-busy={!!pending[name]} aria-pressed={running} aria-label={`${name}: ${running ? (automatic ? 'running, tap to stop early' : 'running, tap to stop') : 'start'}`} onClick={() => void toggle(name)}>
+          return <button key={name} type="button" className={`appliance ${running ? 'running' : ''}`} disabled={!ready || !type || !!pending[name]} aria-busy={!!pending[name]} aria-pressed={running} aria-label={`${name}: ${running ? (automatic ? 'running, tap to stop early' : 'running, tap to stop') : 'start'}`} onClick={() => void toggle(name)}>
             <span className="appliance-symbol"><Icon name={name.toLowerCase() as IconName}/></span>
             <span className="appliance-details">
               <span className="appliance-name">{name}</span>
               {running && <span className="timer-readout"><span>{formatTime(elapsed)} elapsed</span>{remaining !== null && <span>{formatTime(remaining)} remaining</span>}</span>}
-              <span className="appliance-status"><span className="status-dot"/>{pending[name] ? 'SAVING…' : running ? 'RUNNING' : !ready ? 'LOADING…' : 'START'}</span>
-              {running && <span className="stop-hint">{automatic ? 'TAP TO STOP EARLY' : 'TAP TO STOP'}</span>}
+              <span className="appliance-status"><span className="status-dot"/>{pending[name] ? 'SAVING…' : running ? (automatic ? 'STOP EARLY' : 'STOP') : !ready ? 'LOADING…' : 'START'}</span>
             </span>
           </button>;
         })}
       </div></section>
-      <button className="upload" type="button"><Icon name="upload"/>Upload Meter Data</button>
+      <div className="home-actions">
+        <button className="home-action" type="button" onClick={() => { setSaved(false); setView('manual'); }}>+ Manual Add</button>
+        <button className="home-action" type="button" onClick={() => setView('history')}>History / Edit</button>
+      </div>
+      {saved && <p className="manual-success" role="status">Event saved.</p>}
       {error && <p className="auth-error" role="alert">{error} <button type="button" className="sign-out" onClick={() => void restore()}>Retry</button></p>}
       {ready && appliances.some(name => !typeFor(name)) && <p className="auth-error" role="alert">Some appliances are unavailable. Check their quick-action setup.</p>}
     </main>
-    <nav aria-label="Main navigation"><a href="/" aria-current="page"><Icon name="home"/><span>Home</span></a><button type="button" disabled><Icon name="explore"/><span>Explore</span></button><button type="button" disabled><Icon name="ask"/><span>Ask</span></button></nav>
+    <nav aria-label="Main navigation"><a href="/" aria-current="page" onClick={event => { event.preventDefault(); goHome(); }}><Icon name="home"/><span>Home</span></a><button type="button" disabled><Icon name="explore"/><span>Explore</span></button><button type="button" disabled><Icon name="ask"/><span>Ask</span></button></nav>
   </div>;
 }
