@@ -1,5 +1,5 @@
 import type { CoverageReading, DayCoverage } from './coverage';
-import { easternTimestamp } from './eastern-time';
+import { meterDayBounds } from './today';
 
 const quarter = 15 * 60 * 1000;
 const timezone = 'America/New_York';
@@ -17,12 +17,24 @@ function axisLabel(instant: number) {
 }
 
 /** A real-instant time domain is shared by bars and future overlay renderers. */
-export function prepareTodayUsageGraph(readings: readonly CoverageReading[], coverage: Pick<DayCoverage, 'date' | 'coverageEndAt' | 'missingIntervals'>) {
-  const midnight = easternTimestamp(coverage.date, '00:00');
-  if (midnight.error) throw new Error('Invalid graph date.');
-  const startMs = Date.parse(midnight.timestamp);
+export function prepareTodayUsageGraph(readings: readonly CoverageReading[], coverage: Pick<DayCoverage, 'date' | 'coverageEndAt' | 'missingIntervals' | 'missingRanges'>) {
+  const bounds = meterDayBounds(coverage.date);
+  const startMs = Date.parse(bounds.start);
+  const endMs = Date.parse(bounds.end);
   const cutoff = Date.parse(coverage.coverageEndAt);
-  if (!Number.isFinite(cutoff) || cutoff < startMs) throw new Error('Invalid graph coverage cutoff.');
+  if (!Number.isFinite(cutoff) || cutoff < startMs || cutoff > endMs) throw new Error('Invalid graph coverage cutoff.');
+  const missing = coverage.missingRanges.flatMap(range => {
+    const intervals = [];
+    // Expand only the authoritative ranges from coverage.ts; never infer gaps
+    // from bars or mark the unfinished/future portion of the day as missing.
+    for (let start = Date.parse(range.startAt); start <= Date.parse(range.endAt); start += quarter) {
+      if (start < startMs || start + quarter > cutoff) continue;
+      intervals.push({ startMs: start, endMs: start + quarter,
+        intervalLabel: `${intervalTime.format(new Date(start))} – ${intervalTime.format(new Date(start + quarter))}`,
+      });
+    }
+    return intervals;
+  });
   const seen = new Set<number>();
   const bars = readings.flatMap(reading => {
     const start = Date.parse(reading.timestamp);
@@ -34,9 +46,6 @@ export function prepareTodayUsageGraph(readings: readonly CoverageReading[], cov
       intervalLabel: `${intervalTime.format(new Date(start))} – ${intervalTime.format(new Date(start + quarter))}`,
     }];
   }).sort((a, b) => a.startMs - b.startMs);
-  if (!bars.length) return null;
-  // Retain trailing missing slots too, through the latest finished interval.
-  const endMs = cutoff;
   const ticks: { timestamp: number; label: string }[] = [];
   for (let timestamp = startMs; timestamp <= endMs; timestamp += quarter) {
     const parts = localClock.formatToParts(new Date(timestamp));
@@ -44,14 +53,10 @@ export function prepareTodayUsageGraph(readings: readonly CoverageReading[], cov
     const minute = Number(parts.find(part => part.type === 'minute')!.value);
     if (minute === 0 && hour % 6 === 0) ticks.push({ timestamp, label: axisLabel(timestamp) });
   }
-  // Label the right edge too, unless it would collide with the last major tick.
-  if ((endMs - ticks[ticks.length - 1].timestamp) / (endMs - startMs) >= 0.18) {
-    ticks.push({ timestamp: endMs, label: axisLabel(endMs) });
-  }
-  const peak = Math.max(...bars.map(bar => bar.kwh));
+  const peak = Math.max(0, ...bars.map(bar => bar.kwh));
   const scale = peak > 0 ? 10 ** Math.floor(Math.log10(peak)) : 1;
   const ceiling = peak / scale;
   const yMax = (ceiling <= 1 ? 1 : ceiling <= 2 ? 2 : ceiling <= 5 ? 5 : 10) * scale;
-  return { startMs, endMs, bars, ticks, yMax, incomplete: coverage.missingIntervals > 0 };
+  return { startMs, endMs, coverageEndMs: cutoff, bars, missing, ticks, yMax, incomplete: coverage.missingIntervals > 0 };
 }
 export type UsageGraph = NonNullable<ReturnType<typeof prepareTodayUsageGraph>>;

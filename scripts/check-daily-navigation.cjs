@@ -42,6 +42,9 @@ assert.equal(partialGraph.bars.length, 40);
 const missing = summarizeMeterDay([], '2026-10-18', now);
 assert.equal(missing.todayKwh, null); assert.equal(missing.coverage.status, 'missing');
 assert.equal(missing.coverage.expectedIntervals, 96); assert.equal(missing.coverage.missingIntervals, 96);
+const missingGraph = prepareTodayUsageGraph(missing.completedReadings, missing.coverage);
+assert.equal(missingGraph.bars.length, 0); assert.equal(missingGraph.missing.length, 96);
+assert.equal(missingGraph.endMs, fullGraph.endMs);
 for (const [date, start, count] of [['2026-03-08', '2026-03-08T05:00:00Z', 92], ['2026-11-01', '2026-11-01T04:00:00Z', 100]]) {
   const later = new Date('2026-12-01T17:00:00Z');
   const day = summarizeMeterDay(rows(start, count), date, later);
