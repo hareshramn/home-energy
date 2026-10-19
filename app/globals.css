@@ -30,3 +30,5 @@
 
 /* Keep Home content within narrow browser widths without hiding overflow. */
 .home-shell>header{gap:8px}.home-shell .brand{min-width:0}.home-shell .brand-icon,.home-shell .header-controls{flex-shrink:0}.home-shell .brand h1{min-width:0}.home-main .energy{flex-wrap:wrap}.home-main .metric p{overflow-wrap:anywhere}.home-main .today-detail{height:auto;min-height:28px}.home-main .today-detail>span,.home-main .bill-insufficient{white-space:normal}
+
+.usage-scrub-slot{fill:#285b43;opacity:.08}.usage-scrub-cursor{stroke:#285b43;stroke-width:1;vector-effect:non-scaling-stroke}.usage-scrub-bubble{fill:#f7f8f3;stroke:#cdd6c7;stroke-width:1}.usage-scrub-time{fill:#64775a;font-size:10px}.usage-scrub-value{fill:#285b43;font-size:11px;font-weight:600}
