@@ -13,6 +13,7 @@ const time = new Intl.DateTimeFormat('en-US', {
 const dateTime = new Intl.DateTimeFormat('en-US', {
   timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
 });
+const weekday = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'long' });
 const number = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const showTime = (value: string | null | undefined) => value ? dateTime.format(new Date(value)) : '--';
 const dateLabel = (date: string, year = true) => new Intl.DateTimeFormat('en-US', {
@@ -41,7 +42,7 @@ export function DailyUsage({ initialDate }: { initialDate?: string }) {
   return <section className="today-usage" aria-label="Daily Usage" aria-busy={state.status === 'loading'}>
     <div className="daily-date-nav">
       <button type="button" aria-label="Previous day" disabled={selectedDate <= '1900-01-01'} onClick={() => move(-1)}>‹</button>
-      <label className="daily-date-control"><span>{dateLabel(selectedDate)}</span>{isToday && <span className="daily-today-badge">Today</span>}<input aria-label="Choose usage date" type="date" value={selectedDate} min="1900-01-01" max={today} onClick={event => { try { event.currentTarget.showPicker?.(); } catch { /* Native focus remains available when showPicker is unsupported. */ } }} onChange={event => select(event.target.value)}/></label>
+      <label className="daily-date-control"><span>{dateLabel(selectedDate)}</span><span className="daily-today-badge">{weekday.format(new Date(`${selectedDate}T12:00:00Z`))}</span>{isToday && <span className="daily-today-badge">Today</span>}<input aria-label="Choose usage date" type="date" value={selectedDate} min="1900-01-01" max={today} onClick={event => { try { event.currentTarget.showPicker?.(); } catch { /* Native focus remains available when showPicker is unsupported. */ } }} onChange={event => select(event.target.value)}/></label>
       <button type="button" aria-label="Next day" disabled={selectedDate >= today} onClick={() => move(1)}>›</button>
     </div>
     {dateError && <p className="auth-error" role="alert">{dateError}</p>}

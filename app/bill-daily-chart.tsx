@@ -32,14 +32,6 @@ export function BillDailyChart({ days, onOpenDay }: { days: DailyUsage; onOpenDa
 
   const selectedIndex = days.findIndex(day => day.date === selected);
   const cursorX = selectedIndex < 0 ? null : center(selectedIndex);
-  const readoutWidth = 150;
-  const readoutX = cursorX === null ? left : Math.max(left, Math.min(width - right - readoutWidth, cursorX - readoutWidth / 2));
-  const readoutValue = active ? active.kwh === null
-    ? active.coverage.status === 'missing' ? 'Missing data' : 'Incomplete data'
-    : `${number.format(active.kwh)} kWh` : '';
-  const readoutStatus = active ? active.coverage.isCurrentDay
-    ? `Today so far${active.coverage.missingIntervals ? ' · incomplete' : ''}`
-    : active.coverage.status === 'complete' ? 'Complete' : `${active.coverage.actualIntervals}/${active.coverage.expectedIntervals} readings` : '';
 
   function point(event: PointerEvent<SVGSVGElement>, initial = false) {
     if (!days.length || !initial && event.pointerType !== 'mouse' && dragging.current !== event.pointerId) return;
@@ -107,12 +99,7 @@ export function BillDailyChart({ days, onOpenDay }: { days: DailyUsage; onOpenDa
       {active && cursorX !== null && <g pointerEvents="none" aria-hidden="true">
         <rect x={left + selectedIndex * slot} y={top} width={slot} height={plotHeight} className="usage-scrub-slot"/>
         <line x1={cursorX} x2={cursorX} y1={top} y2={y(0)} className="usage-scrub-cursor"/>
-        <g transform={`translate(${readoutX}, ${top + 4})`}>
-          <rect width={readoutWidth} height={58} rx={7} className="usage-scrub-bubble"/>
-          <text x={8} y={16} className="usage-scrub-time">{label(active.date)}</text>
-          <text x={8} y={32} className="usage-scrub-value">{readoutValue}</text>
-          <text x={8} y={48} className="usage-scrub-time">{readoutStatus}</text>
-        </g>
+
       </g>}
     </svg>
     <div className="daily-usage-detail" role="status" aria-live="polite">
