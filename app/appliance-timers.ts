@@ -1,36 +1,31 @@
-export const durations = { Washer: 30 * 60, Dryer: 60 * 60, Cooktop: null } as const;
-export type Appliance = keyof typeof durations;
-type Run = { startedAt: number } & (
-  | { endedAt: null; endReason: null }
-  | { endedAt: number; endReason: 'automatic' | 'manual-early' | 'manual' }
-);
-export type TimerState = Record<Appliance, Run | null>;
-export const initialTimers: TimerState = { Washer: null, Dryer: null, Cooktop: null };
+export const appliances = ['Washer', 'Dryer', 'Cooktop'] as const;
+export type Appliance = typeof appliances[number];
+export type EventType = {
+  id: number | string;
+  household_id: string;
+  name: string;
+  is_quick_action: boolean;
+  quick_mode: 'auto_stop' | 'manual_stop' | null;
+  default_duration_minutes: number | null;
+};
+export type EnergyEvent = {
+  id: number | string;
+  household_id: string;
+  event_type_id: number | string;
+  started_at: string;
+  ended_at: string | null;
+  recorded_via: string;
+};
+export const staleManualMs = 5 * 60 * 60 * 1000;
 
-export function advanceTimers(state: TimerState, now: number): TimerState {
-  let next = state;
-  for (const name of Object.keys(durations) as Appliance[]) {
-    const run = state[name];
-    const duration = durations[name];
-    if (run && run.endedAt === null && duration !== null) {
-      const end = run.startedAt + duration * 1000;
-      if (now >= end) {
-        next = { ...next, [name]: { ...run, endedAt: end, endReason: 'automatic' } };
-      }
-    }
-  }
-  return next;
+export function isStaleManual(event: EnergyEvent, type: EventType, now: number) {
+  return type.quick_mode === 'manual_stop' && event.ended_at === null
+    && now - Date.parse(event.started_at) >= staleManualMs;
 }
 
-export function toggleTimer(state: TimerState, name: Appliance, now: number): TimerState {
-  const current = advanceTimers(state, now);
-  const run = current[name];
-  return {
-    ...current,
-    [name]: run && run.endedAt === null
-      ? { ...run, endedAt: now, endReason: name === 'Cooktop' ? 'manual' : 'manual-early' }
-      : { startedAt: now, endedAt: null, endReason: null },
-  };
+export function isRunning(event: EnergyEvent, type: EventType, now: number) {
+  if (type.quick_mode === 'manual_stop') return event.ended_at === null && !isStaleManual(event, type, now);
+  return type.quick_mode === 'auto_stop' && event.ended_at !== null && now < Date.parse(event.ended_at);
 }
 
 export function formatTime(seconds: number): string {

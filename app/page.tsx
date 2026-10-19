@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { advanceTimers, durations, formatTime, initialTimers, toggleTimer, type Appliance } from './appliance-timers';
+import { AuthGate, SignOutControl } from './auth-gate';
+import { appliances, formatTime } from './appliance-timers';
+import { useQuickActions } from './use-quick-actions';
 
 type IconName = 'home' | 'washer' | 'dryer' | 'cooktop' | 'upload' | 'explore' | 'ask' | 'bolt';
 function Icon({ name, className = '' }: { name: IconName; className?: string }) {
@@ -17,57 +18,40 @@ function Icon({ name, className = '' }: { name: IconName; className?: string }) 
 }
 
 export default function Home() {
-  const [timers, setTimers] = useState(initialTimers);
-  const [now, setNow] = useState(0);
-  const hasRunningTimer = Object.values(timers).some(run => run?.endedAt === null);
+  return <AuthGate><Dashboard/></AuthGate>;
+}
 
-  useEffect(() => {
-    if (!hasRunningTimer) return;
-    const update = () => {
-      const timestamp = Date.now();
-      setNow(timestamp);
-      setTimers(current => advanceTimers(current, timestamp));
-    };
-    update();
-    const interval = window.setInterval(update, 1000);
-    // Reconcile elapsed time immediately after returning to a backgrounded tab.
-    document.addEventListener('visibilitychange', update);
-    return () => {
-      window.clearInterval(interval);
-      document.removeEventListener('visibilitychange', update);
-    };
-  }, [hasRunningTimer]);
-
-  function toggle(name: Appliance) {
-    const timestamp = Date.now();
-    setNow(timestamp);
-    setTimers(current => toggleTimer(current, name, timestamp));
-  }
+function Dashboard() {
+  const { now, ready, error, pending, typeFor, runFor, toggle, restore } = useQuickActions();
   return <div className="app-shell">
-    <header><a className="brand" href="/" aria-label="Home Energy home"><span className="brand-icon"><Icon name="bolt"/></span><h1>Home Energy</h1></a></header>
+    <header><a className="brand" href="/" aria-label="Home Energy home"><span className="brand-icon"><Icon name="bolt"/></span><h1>Home Energy</h1></a><SignOutControl/></header>
     <main>
       <section className="summary" aria-label="Energy summary">
         <div className="metric"><h2>TODAY SO FAR</h2><div className="energy"><span>--</span><span className="unit">kWh</span></div><p>No meter data</p></div>
         <div className="metric"><h2>BILL CYCLE AVG</h2><div className="energy"><span>--</span><span className="unit">kWh/day</span></div></div>
       </section>
       <section className="appliances" aria-labelledby="appliances-title"><h2 id="appliances-title">Appliances</h2><div className="appliance-grid">
-        {(Object.keys(durations) as Appliance[]).map(name => {
-          const run = timers[name];
-          const running = !!run && run.endedAt === null;
-          const elapsed = running ? Math.max(0, Math.floor((now - run.startedAt) / 1000)) : 0;
-          const duration = durations[name];
-          return <button key={name} type="button" className={`appliance ${name === 'Cooktop' ? 'wide' : ''} ${running ? 'running' : ''}`} aria-pressed={running} aria-label={`${name}: ${running ? (name === 'Cooktop' ? 'running, tap to stop' : 'running, tap to stop early') : 'start'}`} onClick={() => toggle(name)}>
+        {appliances.map(name => {
+          const type = typeFor(name);
+          const run = runFor(type);
+          const running = !!run;
+          const elapsed = run ? Math.max(0, Math.floor((now - Date.parse(run.started_at)) / 1000)) : 0;
+          const remaining = run?.ended_at ? Math.max(0, Math.ceil((Date.parse(run.ended_at) - now) / 1000)) : null;
+          const automatic = type?.quick_mode === 'auto_stop';
+          return <button key={name} type="button" className={`appliance ${name === 'Cooktop' ? 'wide' : ''} ${running ? 'running' : ''}`} disabled={!ready || !type || !!pending[name]} aria-busy={!!pending[name]} aria-pressed={running} aria-label={`${name}: ${running ? (automatic ? 'running, tap to stop early' : 'running, tap to stop') : 'start'}`} onClick={() => void toggle(name)}>
             <span className="appliance-symbol"><Icon name={name.toLowerCase() as IconName}/></span>
             <span className="appliance-details">
               <span className="appliance-name">{name}</span>
-              {running && <span className="timer-readout"><span>{formatTime(elapsed)} elapsed</span>{duration !== null && <span>{formatTime(duration - elapsed)} remaining</span>}</span>}
-              <span className="appliance-status"><span className="status-dot"/>{running ? 'RUNNING' : 'START'}</span>
-              {running && <span className="stop-hint">{name === 'Cooktop' ? 'TAP TO STOP' : 'TAP TO STOP EARLY'}</span>}
+              {running && <span className="timer-readout"><span>{formatTime(elapsed)} elapsed</span>{remaining !== null && <span>{formatTime(remaining)} remaining</span>}</span>}
+              <span className="appliance-status"><span className="status-dot"/>{pending[name] ? 'SAVING…' : running ? 'RUNNING' : !ready ? 'LOADING…' : 'START'}</span>
+              {running && <span className="stop-hint">{automatic ? 'TAP TO STOP EARLY' : 'TAP TO STOP'}</span>}
             </span>
           </button>;
         })}
       </div></section>
       <button className="upload" type="button"><Icon name="upload"/>Upload Meter Data</button>
+      {error && <p className="auth-error" role="alert">{error} <button type="button" className="sign-out" onClick={() => void restore()}>Retry</button></p>}
+      {ready && appliances.some(name => !typeFor(name)) && <p className="auth-error" role="alert">Some appliances are unavailable. Check their quick-action setup.</p>}
     </main>
     <nav aria-label="Main navigation"><a href="/" aria-current="page"><Icon name="home"/><span>Home</span></a><button type="button" disabled><Icon name="explore"/><span>Explore</span></button><button type="button" disabled><Icon name="ask"/><span>Ask</span></button></nav>
   </div>;
