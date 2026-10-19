@@ -10,6 +10,7 @@ import { MeterUpload } from './meter-upload';
 import { TodayMeterCard } from './today-meter-card';
 import { BillCycleCard, BillCycleView } from './billing-cycle';
 import { DailyUsage } from './today-usage';
+import { Settings } from './settings';
 
 type IconName = 'home' | 'washer' | 'dryer' | 'cooktop' | 'upload' | 'explore' | 'ask' | 'bolt';
 function Icon({ name, className = '' }: { name: IconName; className?: string }) {
@@ -30,19 +31,20 @@ export default function Home() {
 
 function Dashboard() {
   const { now, ready, error, pending, typeFor, runFor, toggle, restore } = useQuickActions();
-  const [view, setView] = useState<'home' | 'manual' | 'history' | 'today' | 'bill' | 'meter'>('home');
+  const [view, setView] = useState<'home' | 'manual' | 'history' | 'today' | 'bill' | 'meter' | 'settings'>('home');
   const [saved, setSaved] = useState(false);
   const [usageDate, setUsageDate] = useState<string | undefined>();
   const [importBusy, setImportBusy] = useState(false);
   const goHome = () => setView('home');
 
   if (view !== 'home') {
-    const title = { manual: 'Manual Add', history: 'History / Edit', today: 'Daily Usage', bill: 'Bill Cycle', meter: 'Meter Data' }[view];
+    const title = { manual: 'Manual Add', history: 'History / Edit', today: 'Daily Usage', bill: 'Bill Cycle', meter: 'Meter Data', settings: 'Settings' }[view];
     return <div className="app-shell secondary-shell">
       <header className="secondary-header"><button type="button" className="back-home" disabled={importBusy} onClick={goHome}>← Home</button><h1>{title}</h1></header>
       <main className="secondary-main">
         {view === 'manual' ? <ManualEvent onCancel={goHome} onSaved={() => { setSaved(true); goHome(); }}/>
           : view === 'history' ? <EventHistory/>
+          : view === 'settings' ? <Settings/>
           : view === 'meter' ? <MeterUpload onBusyChange={setImportBusy}/>
           : view === 'bill' ? <BillCycleView onOpenDay={date => { setUsageDate(date); setView('today'); }}/>
           : <DailyUsage initialDate={usageDate}/>}
@@ -50,7 +52,7 @@ function Dashboard() {
     </div>;
   }
   return <div className="app-shell home-shell">
-    <header><a className="brand" href="/" aria-label="Home Energy home"><span className="brand-icon"><Icon name="bolt"/></span><h1>Home Energy</h1></a><SignOutControl/></header>
+    <header><a className="brand" href="/" aria-label="Home Energy home"><span className="brand-icon"><Icon name="bolt"/></span><h1>Home Energy</h1></a><div className="header-controls"><button type="button" className="settings-control" aria-label="Settings" title="Settings" onClick={() => setView('settings')}><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 3-1 3-3 1-2 3 2 2-1 3 2 3 3-1 2 3h3l1-3 3-1 2-3-2-2 1-3-2-3-3 1-2-3z"/><circle cx="12" cy="12" r="3"/></svg></button><SignOutControl/></div></header>
     <main className="home-main">
       <section className="summary" aria-label="Energy summary">
         <TodayMeterCard onClick={() => { setUsageDate(undefined); setView('today'); }}/>
@@ -83,6 +85,5 @@ function Dashboard() {
       {error && <p className="auth-error" role="alert">{error} <button type="button" className="sign-out" onClick={() => void restore()}>Retry</button></p>}
       {ready && appliances.some(name => !typeFor(name)) && <p className="auth-error" role="alert">Some appliances are unavailable. Check their quick-action setup.</p>}
     </main>
-    <nav aria-label="Main navigation"><a href="/" aria-current="page" onClick={event => { event.preventDefault(); goHome(); }}><Icon name="home"/><span>Home</span></a><button type="button" disabled><Icon name="explore"/><span>Explore</span></button><button type="button" disabled><Icon name="ask"/><span>Ask</span></button></nav>
   </div>;
 }
