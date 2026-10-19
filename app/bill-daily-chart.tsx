@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type PointerEvent, type KeyboardEvent } from 'react';
+import { useRef, useState, type PointerEvent, type KeyboardEvent } from 'react';
 import type { DailyUsage } from '../lib/meter/daily-usage';
 
 const width = 340;
@@ -17,6 +17,8 @@ const label = (date: string) => new Intl.DateTimeFormat('en-US', { timeZone: 'Am
 
 export function BillDailyChart({ days, onOpenDay }: { days: DailyUsage; onOpenDay?: (date: string) => void }) {
   const [selected, setSelected] = useState<string | null>(null);
+  const dragging = useRef<number | null>(null);
+  const lastTouched = useRef<string | null>(null);
   const active = days.find(day => day.date === selected);
   const peak = Math.max(1, ...days.map(day => day.kwh ?? 0));
   const magnitude = 10 ** Math.floor(Math.log10(peak));
@@ -28,11 +30,51 @@ export function BillDailyChart({ days, onOpenDay }: { days: DailyUsage; onOpenDa
   const barWidth = Math.min(30, slot * 0.7);
   const labelStep = Math.max(1, Math.ceil(days.length / 6));
 
-  function point(event: PointerEvent<SVGSVGElement>) {
+  const selectedIndex = days.findIndex(day => day.date === selected);
+  const cursorX = selectedIndex < 0 ? null : center(selectedIndex);
+  const readoutWidth = 150;
+  const readoutX = cursorX === null ? left : Math.max(left, Math.min(width - right - readoutWidth, cursorX - readoutWidth / 2));
+  const readoutValue = active ? active.kwh === null
+    ? active.coverage.status === 'missing' ? 'Missing data' : 'Incomplete data'
+    : `${number.format(active.kwh)} kWh` : '';
+  const readoutStatus = active ? active.coverage.isCurrentDay
+    ? `Today so far${active.coverage.missingIntervals ? ' · incomplete' : ''}`
+    : active.coverage.status === 'complete' ? 'Complete' : `${active.coverage.actualIntervals}/${active.coverage.expectedIntervals} readings` : '';
+
+  function point(event: PointerEvent<SVGSVGElement>, initial = false) {
+    if (!days.length || !initial && event.pointerType !== 'mouse' && dragging.current !== event.pointerId) return;
     const bounds = event.currentTarget.getBoundingClientRect();
     const x = (event.clientX - bounds.left) / bounds.width * width;
-    const index = Math.floor((x - left) / slot);
-    setSelected(x >= left && x < width - right ? days[index]?.date ?? null : null);
+    const y = (event.clientY - bounds.top) / bounds.height * height;
+    if (initial || dragging.current !== event.pointerId) {
+      if (x < left || x > width - right || y < top || y > top + plotHeight) return;
+    }
+    const index = Math.max(0, Math.min(days.length - 1, Math.floor((x - left) / slot)));
+    const date = days[index].date;
+    if (event.pointerType === 'touch') {
+      if (!initial && lastTouched.current !== null && lastTouched.current !== date && typeof navigator.vibrate === 'function') {
+        try { navigator.vibrate(8); } catch { /* Haptics are optional. */ }
+      }
+      lastTouched.current = date;
+    }
+    setSelected(date);
+  }
+  function startPointer(event: PointerEvent<SVGSVGElement>) {
+    if (!days.length || !event.isPrimary || event.button !== 0) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = (event.clientX - bounds.left) / bounds.width * width;
+    const y = (event.clientY - bounds.top) / bounds.height * height;
+    if (x < left || x > width - right || y < top || y > top + plotHeight) return;
+    dragging.current = event.pointerId;
+    lastTouched.current = null;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    point(event, true);
+  }
+  function endPointer(event: PointerEvent<SVGSVGElement>) {
+    if (dragging.current !== event.pointerId) return;
+    dragging.current = null;
+    lastTouched.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   }
   function keyboard(event: KeyboardEvent<SVGSVGElement>) {
     const index = days.findIndex(day => day.date === selected);
@@ -50,8 +92,8 @@ export function BillDailyChart({ days, onOpenDay }: { days: DailyUsage; onOpenDa
 
   return <div className="bill-panel daily-usage-panel">
     <h2>Daily usage</h2>
-    <svg className="usage-chart" viewBox={`0 0 ${width} ${height}`} tabIndex={0} role="group" aria-roledescription="bar chart" aria-label="Daily electricity usage in kWh per day. Tap a day or use arrow keys for details. Dashed markers represent incomplete or missing data. Light green is today so far."
-      onPointerDown={point} onPointerMove={point} onPointerLeave={event => { if (event.pointerType === 'mouse') setSelected(null); }} onKeyDown={keyboard}>
+    <svg className="usage-chart" viewBox={`0 0 ${width} ${height}`} tabIndex={0} role="group" aria-roledescription="bar chart" aria-label="Daily electricity usage in kWh per day. Touch or drag anywhere in the plot, hover with a mouse, or use arrow keys for details. Dashed markers represent incomplete or missing data. Light green is today so far."
+      onPointerDown={startPointer} onPointerMove={event => point(event)} onPointerUp={endPointer} onPointerCancel={endPointer} onLostPointerCapture={() => { dragging.current = null; lastTouched.current = null; }} onKeyDown={keyboard}>
       <text x={left} y={10} className="usage-chart-unit">kWh/day</text>
       {[0, max / 2, max].map(value => <g key={value}><line x1={left} x2={width - right} y1={y(value)} y2={y(value)} className="usage-chart-grid"/><text x={left - 6} y={y(value) + 3} textAnchor="end" className="usage-chart-label">{value}</text></g>)}
       {days.map((day, index) => <g key={day.date}>
@@ -61,9 +103,20 @@ export function BillDailyChart({ days, onOpenDay }: { days: DailyUsage; onOpenDa
           : <rect x={center(index) - barWidth / 2} y={y(day.kwh)} width={barWidth} height={y(0) - y(day.kwh)} rx={Math.min(2, barWidth / 4)} className={`daily-bar ${day.coverage.isCurrentDay ? 'today' : ''} ${selected === day.date ? 'selected' : ''}`}/>}
         {(index % labelStep === 0 || index === days.length - 1 && index % labelStep >= labelStep / 2) && <text x={center(index)} y={height - 7} textAnchor={index === 0 ? 'start' : index === days.length - 1 ? 'end' : 'middle'} className="usage-chart-label">{index === 0 || day.date.slice(8) === '01' ? label(day.date) : String(Number(day.date.slice(8)))}</text>}
       </g>)}
+      <rect x={left} y={top} width={plotWidth} height={plotHeight} fill="transparent"/>
+      {active && cursorX !== null && <g pointerEvents="none" aria-hidden="true">
+        <rect x={left + selectedIndex * slot} y={top} width={slot} height={plotHeight} className="usage-scrub-slot"/>
+        <line x1={cursorX} x2={cursorX} y1={top} y2={y(0)} className="usage-scrub-cursor"/>
+        <g transform={`translate(${readoutX}, ${top + 4})`}>
+          <rect width={readoutWidth} height={58} rx={7} className="usage-scrub-bubble"/>
+          <text x={8} y={16} className="usage-scrub-time">{label(active.date)}</text>
+          <text x={8} y={32} className="usage-scrub-value">{readoutValue}</text>
+          <text x={8} y={48} className="usage-scrub-time">{readoutStatus}</text>
+        </g>
+      </g>}
     </svg>
     <div className="daily-usage-detail" role="status" aria-live="polite">
-      {!active ? <span>Tap a day for details</span> : <>
+      {!active ? <span>Touch or drag for details</span> : <>
         <strong>{label(active.date)}{active.coverage.isCurrentDay ? ' · Today so far' : ''}</strong>
         {active.coverage.isCurrentDay ? <>
           <span>{active.kwh === null ? 'No completed meter data yet' : `${number.format(active.kwh)} kWh so far`}</span>
