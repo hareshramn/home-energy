@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { chartTimeTicks } from './chart-time-axis';
 import type { UsageGraph } from '../lib/meter/usage-graph';
 import { sharedUsageDomain } from '../lib/meter/event-overlays';
 import type { TodayEventsState } from './use-today-events';
@@ -14,7 +15,6 @@ const bottom = 30;
 const plotWidth = width - left - right;
 const plotHeight = height - top - bottom;
 const easternClock = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
-const easternHour = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hourCycle: 'h23' });
 const yNumber = new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 });
 
 export function TodayUsageChart({ graph, events, isCurrentDay = true }: { graph: UsageGraph | null; events: TodayEventsState; isCurrentDay?: boolean }) {
@@ -52,11 +52,7 @@ export function TodayUsageChart({ graph, events, isCurrentDay = true }: { graph:
   const inset = Math.min(1, barWidth * 0.12);
 
   // Axis presentation only: retain the graph's real-instant Eastern day domain.
-  const ticks = Array.from({ length: Math.round((graph.endMs - graph.startMs) / 3600000) + 1 }, (_, index) => {
-    const timestamp = graph.startMs + index * 3600000;
-    const hour = Number(easternHour.format(new Date(timestamp)));
-    return { timestamp, major: hour % 3 === 0, label: `${hour % 12 || 12}${hour < 12 ? 'A' : 'P'}` };
-  });
+  const ticks = chartTimeTicks(graph.startMs, graph.endMs);
   const selection = selected !== null && selected >= graph.startMs && selected < graph.endMs ? selected : null;
   const selectionValue = active ? `${active.kwh} kWh` : activeMissing ? 'Missing' : 'Not available yet';
   const cursorX = selection === null ? null : x(selection) + barWidth / 2;
@@ -122,7 +118,8 @@ export function TodayUsageChart({ graph, events, isCurrentDay = true }: { graph:
       <text x={left} y={10} className="usage-chart-unit">kWh</text>
       {[0, graph.yMax / 2, graph.yMax].map(value => <g key={value}>
         <line x1={left} x2={width - right} y1={y(value)} y2={y(value)} className="usage-chart-grid"/>
-        <text x={left - 6} y={y(value) + 3} textAnchor="end" className="usage-chart-label">{yNumber.format(value)}</text>
+        <line x1={left - 4} x2={left} y1={y(value)} y2={y(value)} className="energy-axis-tick"/>
+        <text x={left - 7} y={y(value) + 3} textAnchor="end" className="usage-chart-label">{yNumber.format(value)}</text>
       </g>)}
       <g aria-label="Missing meter readings">{graph.missing.map(interval => <rect key={interval.startMs} x={x(interval.startMs) + inset} y={y(0) - 8} width={barWidth - inset * 2} height={8} rx={1} className={interval.startMs === selected ? 'usage-missing-marker selected' : 'usage-missing-marker'}><title>{interval.intervalLabel}: Missing meter reading</title></rect>)}</g>
       <g aria-label="Meter readings">{graph.bars.map(bar => <g key={bar.startMs}>
@@ -131,8 +128,8 @@ export function TodayUsageChart({ graph, events, isCurrentDay = true }: { graph:
           : <rect x={x(bar.startMs) + inset} y={y(bar.kwh)} width={barWidth - inset * 2} height={y(0) - y(bar.kwh)} rx={Math.min(1.5, barWidth / 4)} className={bar.startMs === selected ? 'usage-bar selected' : 'usage-bar'}/>}
       </g>)}</g>
       {ticks.map(tick => <g key={tick.timestamp}>
-        <line x1={x(tick.timestamp)} x2={x(tick.timestamp)} y1={y(0)} y2={y(0) + (tick.major ? 5 : 3)} className="usage-chart-grid"/>
-        {tick.major && <text x={x(tick.timestamp)} y={height - 8} textAnchor={tick.timestamp === graph.startMs ? 'start' : tick.timestamp === graph.endMs ? 'end' : 'middle'} className="usage-chart-label">{tick.label}</text>}
+        <line x1={x(tick.timestamp)} x2={x(tick.timestamp)} y1={y(0)} y2={y(0) + (tick.major ? 5 : 3)} className={tick.major ? 'energy-axis-tick' : 'energy-axis-minor-tick'}/>
+        {tick.major && <text x={x(tick.timestamp)} y={height - 8} textAnchor={tick.timestamp === graph.startMs ? 'start' : tick.timestamp === graph.endMs ? 'end' : 'middle'} className="usage-chart-label energy-axis-label">{tick.label}</text>}
       </g>)}
       <rect x={left} y={top} width={plotWidth} height={plotHeight} fill="transparent"/>
       {selection !== null && cursorX !== null && <g className="usage-scrub-selection" pointerEvents="none" aria-hidden="true">

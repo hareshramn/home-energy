@@ -32,3 +32,34 @@
 .home-shell>header{gap:8px}.home-shell .brand{min-width:0}.home-shell .brand-icon,.home-shell .header-controls{flex-shrink:0}.home-shell .brand h1{min-width:0}.home-main .energy{flex-wrap:wrap}.home-main .metric p{overflow-wrap:anywhere}.home-main .today-detail{height:auto;min-height:28px}.home-main .today-detail>span,.home-main .bill-insufficient{white-space:normal}
 
 .usage-scrub-slot{fill:#285b43;opacity:.08}.usage-scrub-cursor{stroke:#285b43;stroke-width:1;vector-effect:non-scaling-stroke}.usage-scrub-bubble{fill:#f7f8f3;stroke:#cdd6c7;stroke-width:1}.usage-scrub-time{fill:#64775a;font-size:10px}.usage-scrub-value{fill:#285b43;font-size:11px;font-weight:600}
+
+.trend-panel{padding:16px 12px}.trend-panel h2{margin-left:6px}.trend-readout{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;min-height:30px;margin:0 6px 10px;font-size:12px;color:#64775a;font-variant-numeric:tabular-nums}.trend-readout strong{color:var(--green)}.trend-line{fill:none;stroke:#3b6d4f;stroke-width:2.5;stroke-linejoin:round;vector-effect:non-scaling-stroke}.trend-dot{fill:#285b43}.trend-gap{fill:#bf6b65;opacity:.14}
+
+.trend-readout{min-height:20px;margin-bottom:4px}.trend-typical{fill:none;stroke:#94a28a;stroke-width:1.8;stroke-dasharray:5 4;vector-effect:non-scaling-stroke}.trend-difference{font-size:13px;color:#64775a;margin:8px 0 0}.trend-legend{display:flex;gap:18px;font-size:10px;color:var(--muted);margin-top:3px}.trend-legend>span{display:flex;align-items:center;gap:6px}.trend-legend i{display:inline-block;width:18px;border-top:2px solid #3b6d4f}.trend-legend i.typical{border-top:2px dashed #94a28a}.trend-panel .usage-chart:focus-visible{outline:2px solid #82aa6c;outline-offset:3px;border-radius:4px}
+
+.trend-compare{border:0;margin:0;padding:0;min-width:0}.trend-compare legend{font-size:11px;color:var(--muted);margin-bottom:7px}.trend-compare>div{display:flex;gap:5px}.trend-compare button{flex:1;min-height:38px;padding:6px 5px;border:1px solid #dce3d5;border-radius:10px;background:#fff;color:#64775a;font-size:12px}.trend-compare button[aria-pressed=true]{background:#e8f0e6;border-color:#87a67e;color:var(--green);font-weight:600}
+
+.trend-scrub-difference{min-height:17px;margin:0 6px 4px;font-size:11px;line-height:1.5;color:#64775a;font-variant-numeric:tabular-nums}
+
+.home-explore-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}.home-explore-actions>button,.home-explore-actions>a{min-width:0;min-height:66px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:5px;padding:12px 14px;border:1px solid #dce3d5;border-radius:14px;background:#fff;text-decoration:none;color:var(--green);text-align:left}.home-explore-actions strong{font-size:14px;font-weight:600}.home-explore-actions span{font-size:11px;color:#70816a}.analysis-view{min-height:0;overflow-y:auto;display:grid;align-content:start;gap:12px;padding-bottom:12px}.analysis-count{font-size:14px;margin:0;color:var(--green)}.analysis-days{list-style:none;padding:0;margin:0;display:grid;gap:10px}.analysis-day-heading{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:8px}.analysis-day h3{font-size:14px;margin:0}.analysis-day-heading strong{font-size:16px;font-variant-numeric:tabular-nums}.analysis-day dl{margin:12px 0 0;display:grid;gap:8px}.analysis-day dl>div{display:flex;justify-content:space-between;gap:10px;font-size:12px;line-height:1.5}.analysis-day dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}.analysis-day dd span{color:var(--muted)}.analysis-view .bill-panel h2{line-height:1.5}.analysis-view .back-home{text-decoration:none}
+
+.recorded-activity ul{list-style:none;padding:0;margin:12px 0 0;display:grid;gap:14px}.recorded-activity-row{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:4px 12px;font-size:12px;line-height:1.5}.recorded-activity-row strong{font-weight:500;overflow-wrap:anywhere;min-width:0}.recorded-activity-row>span{font-variant-numeric:tabular-nums;color:#64775a}.recorded-activity-track{height:5px;margin-top:6px;border-radius:4px;background:#edf0e8;overflow:hidden}.recorded-activity-track>div{height:100%;background:#91aa83;border-radius:4px}.recorded-activity>.sign-out{margin-top:7px;padding-left:0}
+
+.daily-trend{gap:10px}.daily-trend .trend-compare legend{margin-bottom:4px}.daily-trend .trend-panel{padding-top:12px;padding-bottom:10px}.trend-energy-header{margin:0 6px 6px}.trend-energy-header .energy{margin-top:0;flex-wrap:wrap}.trend-energy-meta{display:flex;flex-wrap:wrap;gap:3px 0;font-size:12px;line-height:1.5;color:#64775a;margin-top:6px}.trend-energy-meta>span+span::before{content:' · ';white-space:pre}.trend-coverage-warning{font-size:12px;line-height:1.5;margin:4px 0 0}.trend-scrub-readout{margin-top:7px}.daily-trend .trend-panel .usage-chart-caption{margin-top:5px}.daily-trend .recorded-activity{padding:12px 14px}.daily-trend .recorded-activity h2{margin-bottom:5px}.daily-trend .recorded-activity>.usage-chart-caption{margin-top:0}.daily-trend .recorded-activity ul{margin-top:9px;gap:11px}
+
+@media(max-width:600px){
+  .daily-trend{gap:8px}
+  .daily-trend .trend-energy-chart{aspect-ratio:360 / 205;height:auto}
+  .daily-trend .trend-energy-chart .usage-chart-label,.daily-trend .trend-energy-chart .usage-chart-unit{font-size:13px}
+  .daily-trend .trend-energy-header .energy>span:first-child{font-size:30px;letter-spacing:-1.4px}
+  .daily-trend .trend-energy-meta{margin-top:4px}
+  .daily-trend .trend-footer-meta{margin-top:4px;font-size:10px;line-height:1.5;color:var(--muted)}
+  .daily-trend .trend-footer-meta .usage-chart-caption{display:inline;margin:0}
+  .daily-trend .trend-interaction-hint::before{content:' · '}
+  .daily-trend .recorded-activity{padding-top:10px;padding-bottom:10px}
+  .daily-trend .recorded-activity ul{margin-top:7px;gap:8px}
+  .daily-trend .recorded-activity-track{margin-top:4px}
+}
+
+.energy-axis-tick{stroke:#73816a;stroke-width:1.25;vector-effect:non-scaling-stroke}.energy-axis-minor-tick{stroke:#c4cdbc;stroke-width:1;vector-effect:non-scaling-stroke}.usage-chart .energy-axis-label{font-size:10px;fill:#64775a}
+@media(max-width:600px){.daily-trend .trend-energy-chart .energy-axis-label{font-size:10px;transform:scaleY(1.34);transform-box:fill-box;transform-origin:center}}

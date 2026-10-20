@@ -20,7 +20,7 @@ const dateLabel = (date: string, year = true) => new Intl.DateTimeFormat('en-US'
   timeZone: 'America/New_York', month: 'short', day: 'numeric', ...(year ? { year: 'numeric' as const } : {}),
 }).format(new Date(`${date}T12:00:00Z`));
 
-export function DailyUsage({ initialDate }: { initialDate?: string }) {
+export function DailyUsage({ initialDate, onOpenTrend }: { initialDate?: string; onOpenTrend: (date: string) => void }) {
   const [selectedDate, setSelectedDate] = useState(() => initialDate ?? currentMeterDate());
   const [dateError, setDateError] = useState('');
   const state = useTodayMeter(selectedDate);
@@ -45,6 +45,7 @@ export function DailyUsage({ initialDate }: { initialDate?: string }) {
       <label className="daily-date-control"><span>{dateLabel(selectedDate)}</span><span className="daily-today-badge">{weekday.format(new Date(`${selectedDate}T12:00:00Z`))}</span>{isToday && <span className="daily-today-badge">Today</span>}<input aria-label="Choose usage date" type="date" value={selectedDate} min="1900-01-01" max={today} onClick={event => { try { event.currentTarget.showPicker?.(); } catch { /* Native focus remains available when showPicker is unsupported. */ } }} onChange={event => select(event.target.value)}/></label>
       <button type="button" aria-label="Next day" disabled={selectedDate >= today} onClick={() => move(1)}>›</button>
     </div>
+    <button type="button" className="home-action" onClick={() => onOpenTrend(selectedDate)}>Daily Trend →</button>
     {dateError && <p className="auth-error" role="alert">{dateError}</p>}
     <div className="bill-panel">
       {!isToday && <h2>{dateLabel(selectedDate, false)} Usage</h2>}

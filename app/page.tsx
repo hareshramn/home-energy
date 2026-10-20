@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { EventHistory } from './event-history';
 import { AuthGate, SignOutControl } from './auth-gate';
 import { appliances, formatTime } from './appliance-timers';
@@ -10,6 +11,7 @@ import { MeterUpload } from './meter-upload';
 import { TodayMeterCard } from './today-meter-card';
 import { BillCycleCard, BillCycleView } from './billing-cycle';
 import { DailyUsage } from './today-usage';
+import { DailyTrend } from './daily-trend';
 import { Settings } from './settings';
 
 type IconName = 'home' | 'washer' | 'dryer' | 'cooktop' | 'upload' | 'explore' | 'ask' | 'bolt';
@@ -31,14 +33,14 @@ export default function Home() {
 
 function Dashboard() {
   const { now, ready, error, pending, typeFor, runFor, toggle, restore } = useQuickActions();
-  const [view, setView] = useState<'home' | 'manual' | 'history' | 'today' | 'bill' | 'meter' | 'settings'>('home');
+  const [view, setView] = useState<'home' | 'manual' | 'history' | 'today' | 'trend' | 'bill' | 'meter' | 'settings'>('home');
   const [saved, setSaved] = useState(false);
   const [usageDate, setUsageDate] = useState<string | undefined>();
   const [importBusy, setImportBusy] = useState(false);
   const goHome = () => setView('home');
 
   if (view !== 'home') {
-    const title = { manual: 'Manual Add', history: 'History / Edit', today: 'Daily Usage', bill: 'Bill Cycle', meter: 'Meter Data', settings: 'Settings' }[view];
+    const title = { manual: 'Manual Add', history: 'History / Edit', today: 'Daily Usage', trend: 'Daily Trend', bill: 'Bill Cycle', meter: 'Meter Data', settings: 'Settings' }[view];
     return <div className="app-shell secondary-shell">
       <header className="secondary-header"><button type="button" className="back-home" disabled={importBusy} onClick={goHome}>← Home</button><h1>{title}</h1></header>
       <main className="secondary-main">
@@ -47,7 +49,8 @@ function Dashboard() {
           : view === 'settings' ? <Settings/>
           : view === 'meter' ? <MeterUpload onBusyChange={setImportBusy}/>
           : view === 'bill' ? <BillCycleView onOpenDay={date => { setUsageDate(date); setView('today'); }}/>
-          : <DailyUsage initialDate={usageDate}/>}
+          : view === 'trend' ? <DailyTrend initialDate={usageDate}/>
+          : <DailyUsage initialDate={usageDate} onOpenTrend={date => { setUsageDate(date); setView('trend'); }}/>}
       </main>
     </div>;
   }
@@ -59,6 +62,10 @@ function Dashboard() {
         <BillCycleCard onClick={() => setView('bill')}/>
       </section>
       <button className="upload" type="button" onClick={() => setView('meter')}><Icon name="upload"/>Upload Meter Data</button>
+      <div className="home-explore-actions">
+        <button type="button" onClick={() => { setUsageDate(undefined); setView('trend'); }}><strong>Daily Trend</strong><span>Usage vs usual</span></button>
+        <Link href="/analysis"><strong>Analysis</strong><span>Find drivers</span></Link>
+      </div>
       <section className="appliances" aria-label="Quick actions"><div className="appliance-grid">
         {appliances.map(name => {
           const type = typeFor(name);
