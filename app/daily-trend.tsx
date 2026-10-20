@@ -1,10 +1,11 @@
 'use client';
 
-import { useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useTodayMeter } from './use-today-meter';
 import { adjacentMeterDate, currentMeterDate } from '../lib/meter/today';
 import { prepareDailyTrend, type DailyTrendGraph, type TypicalDay, type BaselineMode, typicalDifference, trendScale, baselineConfidence, trendPointLabel, scrubDifference } from '../lib/meter/daily-trend';
 import { useTypicalDay } from './use-typical-day';
+import { trendChartGeometry, isMobileTrendChart, serverTrendChart, subscribeTrendViewport } from './trend-chart-geometry';
 import { chartTimeTicks } from './chart-time-axis';
 import { RecordedActivity } from './recorded-activity';
 
@@ -53,7 +54,8 @@ function TrendChart({ graph, typical, baselineStatus, summary }: { graph: DailyT
   const lastSelection = useRef<number | null>(null);
   const activePointer = useRef<number | null>(null);
   const scale = trendScale(Math.max(graph.total ?? 0, typical?.points?.at(-1)?.kwh ?? 0));
-  const width = 360, height = 275, left = 32, right = 5, top = 16, bottom = 24;
+  const mobile = useSyncExternalStore(subscribeTrendViewport, isMobileTrendChart, serverTrendChart);
+  const { width, height, left, right, top, bottom } = trendChartGeometry(mobile);
   const x = (timestamp: number) => left + (timestamp - graph.startMs) / (graph.endMs - graph.startMs) * (width - left - right);
   const y = (kwh: number) => height - bottom - kwh / scale.max * (height - top - bottom);
   const point = selected === null ? graph.points[graph.points.length - 1] : graph.points[Math.min(selected, graph.points.length - 1)];
@@ -78,7 +80,7 @@ function TrendChart({ graph, typical, baselineStatus, summary }: { graph: DailyT
     {summary}
     {selected !== null && <div className="trend-scrub-readout"><div className="trend-readout" aria-live="off">{point ? <><span>{pointLabel}</span><strong>{number.format(point.kwh)} kWh{point.afterGap ? ' recorded' : ''}</strong></> : <span>No completed readings</span>}</div>
     <p className="trend-scrub-difference">{difference !== null ? `${signedDifference(difference)} kWh vs ${comparisonName}` : point?.afterGap && typical?.points ? 'Comparison unavailable after missing data' : '\u00a0'}</p></div>}
-    <svg className="usage-chart trend-energy-chart" preserveAspectRatio="none" viewBox={`0 0 ${width} ${height}`} role="slider" tabIndex={graph.points.length ? 0 : undefined} aria-label="Select completed interval on cumulative energy chart"
+    <svg className="usage-chart trend-energy-chart" width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="slider" tabIndex={graph.points.length ? 0 : undefined} aria-label="Select completed interval on cumulative energy chart"
       aria-valuemin={0} aria-valuemax={Math.max(0, graph.points.length - 1)} aria-valuenow={selected ?? Math.max(0, graph.points.length - 1)}
       aria-valuetext={point ? `${pointLabel}, ${number.format(point.kwh)} kWh${point.afterGap ? ' recorded; earlier data missing' : ''}` : 'No completed readings'}
       onKeyDown={event => {
@@ -95,7 +97,7 @@ function TrendChart({ graph, typical, baselineStatus, summary }: { graph: DailyT
       {graph.missing.map(gap => <rect key={gap.startMs} x={x(gap.startMs)} y={top} width={x(gap.endMs) - x(gap.startMs)} height={height - top - bottom} className="trend-gap"/>)}
       {typical?.points && <polyline points={typical.points.map(p => `${x(p.timestamp)},${y(p.kwh)}`).join(' ')} className="trend-typical"/>}
       {graph.segments.map((segment, i) => <g key={i}><polyline points={segment.map(p => `${x(p.timestamp)},${y(p.kwh)}`).join(' ')} className="trend-line"/>{segment.length === 1 && <circle cx={x(segment[0].timestamp)} cy={y(segment[0].kwh)} r={2.5} className="trend-dot"/>}</g>)}
-      {chartTimeTicks(graph.startMs, graph.endMs).filter(tick => tick.major).map(tick => <g key={tick.timestamp}><line x1={x(tick.timestamp)} x2={x(tick.timestamp)} y1={y(0)} y2={y(0) + 5} className="energy-axis-tick"/><text x={x(tick.timestamp)} y={height - 10} textAnchor={tick.timestamp === graph.startMs ? 'start' : tick.timestamp === graph.endMs ? 'end' : 'middle'} className="usage-chart-label energy-axis-label">{tick.label}</text></g>)}
+      {chartTimeTicks(graph.startMs, graph.endMs).filter(tick => tick.major).map(tick => <g key={tick.timestamp}><line x1={x(tick.timestamp)} x2={x(tick.timestamp)} y1={y(0)} y2={y(0) + 5} className="energy-axis-tick"/><text x={x(tick.timestamp)} y={height - 9} textAnchor={tick.timestamp === graph.startMs ? 'start' : tick.timestamp === graph.endMs ? 'end' : 'middle'} className="usage-chart-label energy-axis-label">{tick.label}</text></g>)}
       {point && <><line x1={x(point.timestamp)} x2={x(point.timestamp)} y1={top} y2={height - bottom} className="usage-scrub-cursor"/><circle cx={x(point.timestamp)} cy={y(point.kwh)} r={3.5} className="trend-dot"/></>}
     </svg>
     <div className="trend-legend"><span><i/>Selected day</span>{typical?.points && <span><i className="typical"/>{typical.count < 3 ? 'Limited baseline' : 'Typical'}</span>}</div>

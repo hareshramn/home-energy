@@ -5,6 +5,7 @@ const path = require('node:path');
 const ts = require('typescript');
 const React = require('react');
 let active;
+let mobileLayout = false;
 function renderer(component) {
   const slots = [];
   return props => {
@@ -18,6 +19,7 @@ function renderer(component) {
   };
 }
 const hooks = {
+  useSyncExternalStore() { return mobileLayout; },
   useState(initial) {
     const context = active, index = context.cursor++;
     if (!(index in context.slots)) context.slots[index] = typeof initial === 'function' ? initial() : initial;
@@ -153,3 +155,34 @@ checkAxis(renderer(chart.type)(chart.props));
 const { TodayUsageChart } = load('../app/today-usage-chart.tsx');
 checkAxis(renderer(TodayUsageChart)({ graph: chart.props.graph, events: { status: 'loading' } }));
 console.log('PASS shared compact 3-hour labels, actual Eastern/DST positions, endpoint alignment, and visible x/y ticks on both charts.');
+
+// The responsive viewBox and intrinsic dimensions agree; labels need no CSS transforms.
+mobileLayout = true;
+const mobileTree = renderer(chart.type)(chart.props);
+const mobileSvg = find(mobileTree, node => node.type === 'svg');
+assert.equal(mobileSvg.props.viewBox, '0 0 360 215');
+assert.equal(mobileSvg.props.width, 360);
+assert.equal(mobileSvg.props.height, 215);
+const mobileLabels = nodes(mobileSvg).filter(node => node.type === 'text' && node.props.className?.includes('energy-axis-label'));
+assert.deepEqual(mobileLabels.map(node => node.props.children), expectedLabels);
+const tickBottom = Math.max(...nodes(mobileSvg).filter(node => node.type === 'line' && node.props.x1 === node.props.x2 && node.props.className === 'energy-axis-tick').map(node => node.props.y2));
+assert.equal(tickBottom, 190);
+assert.ok(mobileLabels.every(label => label.props.y - 10 >= tickBottom && label.props.y + 3 < mobileSvg.props.height));
+assert.equal(mobileLabels[0].props.textAnchor, 'start');
+assert.equal(mobileLabels.at(-1).props.textAnchor, 'end');
+assert.equal(mobileLabels[0].props.x, 32);
+assert.equal(mobileLabels.at(-1).props.x, 355);
+for (const cssWidth of [260, 284, 320, 360]) {
+  const ratio = cssWidth / mobileSvg.props.width;
+  assert.ok(mobileLabels.every(label => (label.props.y + 3) * ratio < mobileSvg.props.height * ratio));
+  assert.ok(mobileLabels[0].props.x * ratio > 0);
+  assert.ok(mobileLabels.at(-1).props.x * ratio < cssWidth);
+}
+const geometryCss = fs.readFileSync('../app/globals.css', 'utf8');
+assert.ok(!geometryCss.includes('scaleY(1.34)'));
+assert.ok(!geometryCss.includes('aspect-ratio:360 / 205'));
+const children = React.Children.toArray(mobileTree.props.children);
+assert.ok(children.findIndex(node => node.type === 'svg') < children.findIndex(node => node.props.className === 'trend-legend'));
+mobileLayout = false;
+assert.equal(find(renderer(chart.type)(chart.props), node => node.type === 'svg').props.viewBox, '0 0 360 275');
+console.log('PASS mobile SVG/intrinsic sizing, reserved axis band, tick/label clearance, narrow-phone endpoint bounds, normal-flow legend, and unchanged desktop height.');
