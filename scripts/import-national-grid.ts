@@ -12,14 +12,19 @@ dotenv.config({
   path: path.resolve(process.cwd(), '.env.local'),
 });
 
-const email = process.env.SUPABASE_AUTH_EMAIL;
-const password = process.env.SUPABASE_AUTH_PASSWORD;
+const emailFromEnv = process.env.SUPABASE_AUTH_EMAIL;
+const passwordFromEnv = process.env.SUPABASE_AUTH_PASSWORD;
 
-if (!email || !password) {
+if (!emailFromEnv || !passwordFromEnv) {
   throw new Error(
     'Missing SUPABASE_AUTH_EMAIL or SUPABASE_AUTH_PASSWORD in .env.local'
   );
 }
+
+// After validation, keep explicitly typed values so TypeScript
+// knows these cannot be undefined later in the async workflow.
+const email: string = emailFromEnv;
+const password: string = passwordFromEnv;
 
 
 // ============================================================

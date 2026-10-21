@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build",
+    "vercel-build": "next build",
     "import:meter": "tsx scripts/import-national-grid.ts"
   },
   "dependencies": {
