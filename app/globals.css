@@ -60,3 +60,5 @@
 }
 
 .energy-axis-tick{stroke:#73816a;stroke-width:1.25;vector-effect:non-scaling-stroke}.energy-axis-minor-tick{stroke:#c4cdbc;stroke-width:1;vector-effect:non-scaling-stroke}.usage-chart .energy-axis-label{font-size:10px;fill:#64775a}
+
+.activity-shortcut{height:86px}.activity-shortcut .appliance-name{font-size:13px}.activity-shortcut .appliance-symbol{margin-bottom:8px}

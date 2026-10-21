@@ -111,7 +111,7 @@ const x = instant => (instant - domain.startMs) / (domain.endMs - domain.startMs
 assert.equal(x(overlay.rows.find(row => row.id === 3).endMs), x(graph.bars[1].endMs));
 assert.equal(sharedUsageDomain(graph, prepareEventOverlays([], '2026-10-19', now)).endMs, graph.endMs);
 const scheduled = prepareEventOverlays([{ id: 6, name: 'Dryer', started_at: '2026-10-19T17:00:00Z', ended_at: '2026-10-19T18:00:00Z' }], '2026-10-19', now).rows[0];
-assert.equal(scheduled.endMs, now.getTime()); assert.equal(scheduled.scheduled, true); assert.equal(scheduled.durationMinutes, 60);
+assert.equal(scheduled.endMs, now.getTime()); assert.equal(scheduled.scheduled, true); assert.equal(scheduled.durationMinutes, (now.getTime() - Date.parse('2026-10-19T17:00:00Z')) / 60000);
 for (const [date, hours] of [['2026-03-08', 23], ['2026-11-01', 25]]) {
   const bounds = eventDayBounds(date);
   assert.equal((Date.parse(bounds.end) - Date.parse(bounds.start)) / 3600000, hours);

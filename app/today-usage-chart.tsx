@@ -1,5 +1,7 @@
 'use client';
 
+import { eventDisplayName } from '../lib/events/activity-shortcuts';
+
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { chartTimeTicks } from './chart-time-axis';
 import type { UsageGraph } from '../lib/meter/usage-graph';
@@ -35,12 +37,12 @@ export function TodayUsageChart({ graph, events, isCurrentDay = true }: { graph:
       : !overlays?.rows.length ? <p className="usage-event-note">No recorded events today</p>
       : <>
         <div className="usage-event-scroll"><div className="usage-event-tracks" style={{ marginLeft: `${left / width * 100}%`, marginRight: `${right / width * 100}%` }}>
-          {overlays.rows.map(row => <button className={`usage-event-row ${row.id === selectedEvent ? 'selected' : ''}`} type="button" key={row.id} aria-label={`${row.name}, ${row.timeLabel}, ${row.durationMinutes === null ? 'duration unknown' : `${row.durationMinutes} min`}${row.scheduled ? ', scheduled duration' : ''}`} aria-pressed={row.id === selectedEvent} onClick={() => setSelectedEvent(row.id)}>
-            <span className="usage-event-name">{row.name}{row.open ? row.historical ? ' · stop unknown' : ' · running' : ''}</span>
+          {overlays.rows.map(row => <button className={`usage-event-row ${row.id === selectedEvent ? 'selected' : ''}`} type="button" key={row.id} aria-label={`${eventDisplayName(row.name)}, ${row.timeLabel}, ${row.durationMinutes === null ? 'duration unknown' : `${row.durationMinutes} min`}${row.scheduled ? ', elapsed duration; planned end' : ''}`} aria-pressed={row.id === selectedEvent} onClick={() => setSelectedEvent(row.id)}>
+            <span className="usage-event-name">{eventDisplayName(row.name)}{row.open ? row.historical ? ' · stop unknown' : ' · running' : ''}</span>
             <span className="usage-event-band" style={{ left: `${(row.startMs - domain!.startMs) / (domain!.endMs - domain!.startMs) * 100}%`, width: `${(row.endMs - row.startMs) / (domain!.endMs - domain!.startMs) * 100}%` }}/>
           </button>)}
         </div></div>
-        {event && <p className="usage-event-detail" role="status"><strong>{event.name}</strong> · {event.timeLabel} · {event.durationMinutes === null ? 'Duration unknown' : `${event.durationMinutes} min`}{event.scheduled ? ' (scheduled duration)' : event.open && !event.historical ? ' elapsed' : ''}</p>}
+        {event && <p className="usage-event-detail" role="status"><strong>{eventDisplayName(event.name)}</strong> · {event.timeLabel} · {event.durationMinutes === null ? 'Duration unknown' : `${event.durationMinutes} min`}{event.scheduled ? ' elapsed · planned end' : event.open && !event.historical ? ' elapsed' : ''}</p>}
         {overlays.rows.some(row => row.open && row.historical) && <p className="usage-event-note">Open historical events are shown only to day-end; their actual stop time is unknown.</p>}
         <p className="usage-event-note">Observations for correlation only; no energy use is attributed to events.</p>
       </>}

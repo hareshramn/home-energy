@@ -36,7 +36,7 @@ export function prepareEventOverlays(events: readonly NamedEnergyEvent[], date: 
     return [{
       id: event.id, name: event.name, startMs: visibleStart, endMs: visibleEnd,
       timeLabel: `${label(start)} – ${event.ended_at === null ? historical ? 'stop not recorded' : `now (${label(end)})` : label(end)}`,
-      durationMinutes: historical && event.ended_at === null ? null : Math.round((end - start) / 60000 * 10) / 10,
+      durationMinutes: historical && event.ended_at === null ? null : Math.round((Math.min(end, now.getTime()) - start) / 60000 * 10) / 10,
       open: event.ended_at === null, historical, scheduled,
     }];
   }).sort((a, b) => a.startMs - b.startMs);

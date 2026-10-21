@@ -1,5 +1,7 @@
 'use client';
 
+import { eventDisplayName } from '../lib/events/activity-shortcuts';
+
 import { useState } from 'react';
 import { useRecordedActivity } from './use-recorded-activity';
 
@@ -18,7 +20,7 @@ export function RecordedActivity({ date }: { date: string }) {
       : state.status === 'error' ? <p className="auth-error" role="alert">Recorded activity unavailable.</p>
       : !activities.length ? <p className="bill-note">No activities recorded for this day.</p>
       : <ul>{(showAll ? activities : activities.slice(0, 5)).map(activity => <li key={activity.id}>
-        <div className="recorded-activity-row"><strong>{activity.name}</strong><span>{activity.unknownUses === activity.uses ? 'Duration unknown' : `${minutes.format(activity.minutes)} min${activity.unknownUses ? ' known' : ''}`} · {activity.uses} {activity.uses === 1 ? 'use' : 'uses'}</span></div>
+        <div className="recorded-activity-row"><strong>{eventDisplayName(activity.name)}</strong><span>{activity.unknownUses === activity.uses ? 'Duration unknown' : `${minutes.format(activity.minutes)} min${activity.unknownUses ? ' known' : ''}`} · {activity.uses} {activity.uses === 1 ? 'use' : 'uses'}</span></div>
         {activity.minutes > 0 && <div className="recorded-activity-track" aria-hidden="true"><div style={{ width: `${longest ? activity.minutes / longest * 100 : 0}%` }}/></div>}
         {activity.unknownUses > 0 && <p className="usage-chart-caption">{activity.unknownUses} {activity.unknownUses === 1 ? 'use has' : 'uses have'} no recorded stop; duration incomplete.</p>}
         {activity.activeUses > 0 && <p className="usage-chart-caption">Includes elapsed time for {activity.activeUses} active {activity.activeUses === 1 ? 'use' : 'uses'}.</p>}
