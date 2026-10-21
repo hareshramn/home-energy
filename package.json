@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --hostname 0.0.0.0"
+    "dev": "next dev --hostname 0.0.0.0",
+    "import:meter": "tsx scripts/import-national-grid.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
@@ -15,6 +16,8 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "dotenv": "^18.0.8",
+    "tsx": "^4.23.15",
     "typescript": "^5.0.0"
   }
 }
