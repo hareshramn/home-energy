@@ -3,7 +3,7 @@
 import { useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useTodayMeter } from './use-today-meter';
 import { adjacentMeterDate, currentMeterDate } from '../lib/meter/today';
-import { prepareDailyTrend, type DailyTrendGraph, type TypicalDay, type BaselineMode, typicalDifference, trendScale, baselineConfidence, trendPointLabel, scrubDifference } from '../lib/meter/daily-trend';
+import { prepareDailyTrend, type DailyTrendGraph, type TypicalDay, type BaselineMode, typicalDifference, trendScale, comparisonLabel, trendPointLabel, scrubDifference } from '../lib/meter/daily-trend';
 import { useTypicalDay } from './use-typical-day';
 import { trendChartGeometry, isMobileTrendChart, serverTrendChart, subscribeTrendViewport } from './trend-chart-geometry';
 import { chartTimeTicks } from './chart-time-axis';
@@ -28,7 +28,7 @@ export function DailyTrend({ initialDate }: { initialDate?: string }) {
   const summary = <div className="trend-energy-header">
     <div className="energy"><span>{graph?.total != null ? number.format(graph.total) : '--'}</span><span className="unit">{date === today ? 'kWh so far' : data?.coverage.status === 'complete' ? 'kWh' : 'kWh recorded'}</span></div>
     <div className="trend-energy-meta">
-      {difference !== null && <span>{signedDifference(difference)} kWh vs {typical && typical.count < 3 ? 'baseline' : 'typical'}{date === today ? ' at this time' : ''}</span>}
+      {difference !== null && <span>{signedDifference(difference)} kWh vs {mode === 'yesterday' ? 'yesterday' : typical && typical.count < 3 ? 'baseline' : 'typical'}{date === today ? ' at this time' : ''}</span>}
       {data && <span>{data.through ? date === today ? `Through ${clock.format(new Date(data.through))}` : data.coverage.status === 'complete' ? 'Complete day' : 'Recorded usage only' : 'No completed readings available.'}</span>}
     </div>
     {data && data.coverage.status !== 'complete' && <p className="bill-warning trend-coverage-warning">Data incomplete · {data.coverage.missingIntervals} missing intervals</p>}
@@ -41,13 +41,13 @@ export function DailyTrend({ initialDate }: { initialDate?: string }) {
       <div className="daily-date-control"><span>{dateLabel.format(new Date(`${date}T12:00:00Z`))}</span>{date === today && <span className="daily-today-badge">Today</span>}</div>
       <button type="button" aria-label="Next day" disabled={date >= today} onClick={() => setDate(adjacentMeterDate(date, 1))}>›</button>
     </div>
-    <fieldset className="trend-compare"><legend>Compare to:</legend><div>{([['bill', 'Bill cycle'], ['7', 'Last 7 days'], ['30', 'Last 30 days']] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={mode === value} onClick={() => setMode(value)}>{label}</button>)}</div></fieldset>
-    {graph ? <TrendChart graph={graph} typical={typical} baselineStatus={baseline.status} summary={summary}/> : <div className="bill-panel trend-panel">{summary}</div>}
+    <fieldset className="trend-compare"><legend>Compare to:</legend><div>{([['bill', 'Bill cycle'], ['7', 'Past 7 days'], ['weekdays', 'Weekdays'], ['weekends', 'Weekends'], ['yesterday', 'Yesterday']] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={mode === value} onClick={() => setMode(value)}>{label}</button>)}</div></fieldset>
+    {graph ? <TrendChart mode={mode} graph={graph} typical={typical} baselineStatus={baseline.status} summary={summary}/> : <div className="bill-panel trend-panel">{summary}</div>}
     <RecordedActivity date={date}/>
   </section>;
 }
 
-function TrendChart({ graph, typical, baselineStatus, summary }: { graph: DailyTrendGraph; typical: TypicalDay | null; baselineStatus: 'loading' | 'ready' | 'error'; summary: ReactNode }) {
+function TrendChart({ graph, typical, baselineStatus, summary, mode = 'bill' }: { mode?: BaselineMode; graph: DailyTrendGraph; typical: TypicalDay | null; baselineStatus: 'loading' | 'ready' | 'error'; summary: ReactNode }) {
   const [selection, setSelection] = useState<{ dayStart: number; index: number | null }>({ dayStart: graph.startMs, index: null });
   const selected = selection.dayStart === graph.startMs ? selection.index : null;
   if (selection.dayStart !== graph.startMs) setSelection({ dayStart: graph.startMs, index: null });
@@ -61,7 +61,14 @@ function TrendChart({ graph, typical, baselineStatus, summary }: { graph: DailyT
   const point = selected === null ? graph.points[graph.points.length - 1] : graph.points[Math.min(selected, graph.points.length - 1)];
   const difference = scrubDifference(point, typical);
   const pointLabel = point ? trendPointLabel(point.timestamp, graph.endMs) : '';
-  const comparisonName = typical && typical.count < 3 ? 'baseline' : 'typical';
+  const comparisonName = mode === 'yesterday' ? 'yesterday' : mode === 'weekdays' ? 'weekday typical'
+    : mode === 'weekends' ? 'weekend typical' : mode === '7' ? 'past-7-day typical' : mode === 'bill' ? 'bill-cycle typical' : 'typical';
+  const comparisonTitle = comparisonLabel(mode, typical?.count ?? 0, currentMeterDate(new Date(graph.startMs)));
+  const reference = point ? typical?.points?.find(candidate => candidate.timestamp === point.timestamp) : null;
+  const comparisonDescription = mode === 'yesterday'
+    ? typical?.points ? `${comparisonTitle} · Actual recorded usage${typical.incomplete ? ' · Data incomplete' : ''}` : `${comparisonTitle} · No usable data`
+    : typical?.points ? `${comparisonTitle}${typical.count < 3 ? ' · Limited baseline' : ''}` : 'No complete comparison days available.';
+
   function choose(index: number, haptic = false) {
     if (haptic && lastSelection.current !== index && typeof navigator.vibrate === 'function') {
       try { navigator.vibrate(8); } catch { /* Haptics are optional. */ }
@@ -79,7 +86,7 @@ function TrendChart({ graph, typical, baselineStatus, summary }: { graph: DailyT
   return <div className="bill-panel trend-panel">
     {summary}
     {selected !== null && <div className="trend-scrub-readout"><div className="trend-readout" aria-live="off">{point ? <><span>{pointLabel}</span><strong>{number.format(point.kwh)} kWh{point.afterGap ? ' recorded' : ''}</strong></> : <span>No completed readings</span>}</div>
-    <p className="trend-scrub-difference">{difference !== null ? `${signedDifference(difference)} kWh vs ${comparisonName}` : point?.afterGap && typical?.points ? 'Comparison unavailable after missing data' : '\u00a0'}</p></div>}
+    <p className="trend-scrub-difference">{difference !== null ? `${signedDifference(difference)} kWh vs ${comparisonName} · ${reference ? number.format(reference.kwh) : '--'} kWh` : (point?.afterGap || reference?.afterGap) && typical?.points ? 'Comparison unavailable after missing data' : '\u00a0'}</p></div>}
     <svg className="usage-chart trend-energy-chart" width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="slider" tabIndex={graph.points.length ? 0 : undefined} aria-label="Select completed interval on cumulative energy chart"
       aria-valuemin={0} aria-valuemax={Math.max(0, graph.points.length - 1)} aria-valuenow={selected ?? Math.max(0, graph.points.length - 1)}
       aria-valuetext={point ? `${pointLabel}, ${number.format(point.kwh)} kWh${point.afterGap ? ' recorded; earlier data missing' : ''}` : 'No completed readings'}
@@ -95,13 +102,14 @@ function TrendChart({ graph, typical, baselineStatus, summary }: { graph: DailyT
       <text x={left} y={12} className="usage-chart-unit">kWh</text>
       {scale.ticks.map(value => <g key={value}><line x1={left} x2={width - right} y1={y(value)} y2={y(value)} className="usage-chart-grid"/><line x1={left - 4} x2={left} y1={y(value)} y2={y(value)} className="energy-axis-tick"/><text x={left - 7} y={y(value) + 3} textAnchor="end" className="usage-chart-label">{axisNumber.format(value)}</text></g>)}
       {graph.missing.map(gap => <rect key={gap.startMs} x={x(gap.startMs)} y={top} width={x(gap.endMs) - x(gap.startMs)} height={height - top - bottom} className="trend-gap"/>)}
-      {typical?.points && <polyline points={typical.points.map(p => `${x(p.timestamp)},${y(p.kwh)}`).join(' ')} className="trend-typical"/>}
+      {typical?.points && (typical.segments ?? [typical.points]).map((segment, index) => <g key={index}><polyline points={segment.map(p => `${x(p.timestamp)},${y(p.kwh)}`).join(' ')} className="trend-typical"/>{segment.length === 1 && <circle cx={x(segment[0].timestamp)} cy={y(segment[0].kwh)} r={2.5} className="trend-typical"/>}</g>)}
       {graph.segments.map((segment, i) => <g key={i}><polyline points={segment.map(p => `${x(p.timestamp)},${y(p.kwh)}`).join(' ')} className="trend-line"/>{segment.length === 1 && <circle cx={x(segment[0].timestamp)} cy={y(segment[0].kwh)} r={2.5} className="trend-dot"/>}</g>)}
       {chartTimeTicks(graph.startMs, graph.endMs).filter(tick => tick.major).map(tick => <g key={tick.timestamp}><line x1={x(tick.timestamp)} x2={x(tick.timestamp)} y1={y(0)} y2={y(0) + 5} className="energy-axis-tick"/><text x={x(tick.timestamp)} y={height - 9} textAnchor={tick.timestamp === graph.startMs ? 'start' : tick.timestamp === graph.endMs ? 'end' : 'middle'} className="usage-chart-label energy-axis-label">{tick.label}</text></g>)}
       {point && <><line x1={x(point.timestamp)} x2={x(point.timestamp)} y1={top} y2={height - bottom} className="usage-scrub-cursor"/><circle cx={x(point.timestamp)} cy={y(point.kwh)} r={3.5} className="trend-dot"/></>}
     </svg>
-    <div className="trend-legend"><span><i/>Selected day</span>{typical?.points && <span><i className="typical"/>{typical.count < 3 ? 'Limited baseline' : 'Typical'}</span>}</div>
-    <div className="trend-footer-meta"><p className="usage-chart-caption">{baselineStatus === 'loading' ? 'Loading comparison…' : baselineStatus === 'error' ? 'Comparison unavailable.' : baselineConfidence(typical?.count ?? 0)}</p><p className="usage-chart-caption trend-interaction-hint">Drag to explore · Eastern Time</p></div>
+    <div className="trend-legend"><span><i/>Selected day</span>{typical?.points && <span><i className="typical"/>{comparisonTitle}</span>}</div>
+    <div className="trend-footer-meta"><p className="usage-chart-caption">{baselineStatus === 'loading' ? 'Loading comparison…' : baselineStatus === 'error' ? 'Comparison unavailable.' : comparisonDescription}</p><p className="usage-chart-caption trend-interaction-hint">Drag to explore · Eastern Time</p></div>
+    {(mode === 'weekdays' || mode === 'weekends') && <p className="usage-chart-caption">Complete {mode === 'weekdays' ? 'weekdays' : 'weekend days'} in the preceding 30 calendar days.</p>}
     {!!typical?.excludedDstDays && <p className="usage-chart-caption">{typical.excludedDstDays} complete days excluded because their DST day length differs.</p>}
     {graph.incomplete && <p className="usage-chart-caption">{graph.missing.length} intervals missing · Missing usage not estimated</p>}
   </div>;

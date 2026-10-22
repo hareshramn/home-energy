@@ -34,6 +34,7 @@ const hooks = {
   },
 };
 let meterLoading = false;
+let comparisonFactory = () => ({ status: 'ready', data: null });
 const cache = new Map();
 function load(file) {
   file = path.resolve(file);
@@ -50,7 +51,7 @@ function load(file) {
       const rows = Array.from({ length: 4 }, (_, i) => ({ timestamp: new Date(start + i * 900000).toISOString(), kwh: 1 }));
       return { status: 'ready', data: helpers.summarizeMeterDay(rows, date) };
     } };
-    if (name === './use-typical-day') return { useTypicalDay: () => ({ status: 'ready', data: null }) };
+    if (name === './use-typical-day') return { useTypicalDay: (date, mode) => comparisonFactory(date, mode) };
     if (name === './use-recorded-activity') return { useRecordedActivity: date => ({ status: 'ready', data: { activities: Array.from({ length: 7 }, (_, i) => ({ id: `type-${i}`, name: 'Same display name', minutes: i === 0 ? 20.1 : i === 1 ? 8.5 : 70 - i, uses: 1, unknownUses: 0, activeUses: 0 })) } }) };
     const base = path.resolve(path.dirname(file), name);
     return load(fs.existsSync(`${base}.ts`) ? `${base}.ts` : `${base}.tsx`);
@@ -86,13 +87,13 @@ function checkTree(expectedDate) {
   assert.equal(activity[0].props.date, expectedDate);
 }
 checkTree('2026-10-18');
-find(tree, node => node.type === 'button' && node.props.children === 'Last 7 days').props.onClick();
+find(tree, node => node.type === 'button' && node.props.children === 'Past 7 days').props.onClick();
 tree = render({});
 for (const direction of ['Next day', 'Previous day', 'Next day', 'Previous day']) {
   find(tree, node => node.props['aria-label'] === direction).props.onClick();
   tree = render({});
   checkTree(direction === 'Next day' ? '2026-10-19' : '2026-10-18');
-  assert.equal(find(tree, node => node.type === 'button' && node.props.children === 'Last 7 days').props['aria-pressed'], true);
+  assert.equal(find(tree, node => node.type === 'button' && node.props.children === 'Past 7 days').props['aria-pressed'], true);
 }
 meterLoading = true;
 tree = render({}); checkTree('2026-10-18');
@@ -186,3 +187,44 @@ assert.ok(children.findIndex(node => node.type === 'svg') < children.findIndex(n
 mobileLayout = false;
 assert.equal(find(renderer(chart.type)(chart.props), node => node.type === 'svg').props.viewBox, '0 0 360 275');
 console.log('PASS mobile SVG/intrinsic sizing, reserved axis band, tick/label clearance, narrow-phone endpoint bounds, normal-flow legend, and unchanged desktop height.');
+
+// Exercise the real comparison buttons -> props -> SVG paths and scrub readouts.
+const trendHelpers = load('../lib/meter/daily-trend.ts');
+const boundaries = load('../lib/meter/today.ts');
+const comparisonHistory = Array.from({ length: 18 }, (_, index) => {
+  const date = `2026-10-${String(index + 1).padStart(2, '0')}`;
+  const start = Date.parse(boundaries.meterDayBounds(date).start);
+  return Array.from({ length: 96 }, (_, i) => ({ timestamp: new Date(start + i * 900000).toISOString(), kwh: index + 1 }));
+}).flat();
+comparisonFactory = (date, mode) => ({ status: 'ready', data: trendHelpers.prepareTypicalDay(comparisonHistory, date, new Date('2026-10-22T16:00Z'), trendHelpers.typicalWindow(date, mode, ['2026-10-14'], new Date('2026-10-22T16:00Z'))) });
+const switching = renderer(DailyTrend);
+let switchingTree = switching({ initialDate: '2026-10-19' });
+const switchingChart = renderer(find(switchingTree, node => node.type?.name === 'TrendChart').type);
+const paths = [], differences = [];
+let selectedPoints;
+for (const [mode, label] of [['bill', 'Bill cycle'], ['7', 'Past 7 days'], ['weekdays', 'Weekdays'], ['weekends', 'Weekends'], ['yesterday', 'Yesterday']]) {
+  find(switchingTree, node => node.type === 'button' && node.props.children === label).props.onClick();
+  switchingTree = switching({});
+  const props = find(switchingTree, node => node.type?.name === 'TrendChart').props;
+  assert.equal(props.mode, mode);
+  if (!selectedPoints) selectedPoints = props.graph.points;
+  assert.deepEqual(props.graph.points, selectedPoints);
+  let rendered = switchingChart(props);
+  find(rendered, node => node.type === 'svg').props.onKeyDown({ key: 'Home', preventDefault() {} });
+  rendered = switchingChart(props);
+  const path = find(rendered, node => node.type === 'polyline' && node.props.className === 'trend-typical');
+  assert.ok(path); paths.push(path.props.points);
+  const legend = find(rendered, node => node.props.className === 'trend-legend');
+  const legendEntry = nodes(legend).find(node => node.type === 'span' && String(node.props.children).includes(mode === 'yesterday' ? 'Yesterday' : 'Typical'));
+  assert.ok(legendEntry);
+  assert.ok(String(legendEntry.props.children).includes(trendHelpers.comparisonLabel(mode, props.typical.count, '2026-10-19')));
+  const difference = find(rendered, node => node.props.className === 'trend-scrub-difference').props.children;
+  const reference = props.typical.points.find(point => point.timestamp === props.graph.points[0].timestamp);
+  const formatted = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(reference.kwh);
+  assert.ok(difference.includes(`${formatted} kWh`));
+  assert.ok(difference.includes(mode === 'yesterday' ? 'yesterday' : 'typical'));
+  differences.push(difference);
+}
+assert.equal(new Set(paths).size, 5);
+assert.equal(new Set(differences).size, 5);
+console.log('PASS all five mode buttons redraw distinct SVG comparison paths, update legends and same-time scrub values, and preserve selected-day data.');

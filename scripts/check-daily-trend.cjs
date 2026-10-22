@@ -140,3 +140,24 @@ for (const [date, count] of [['2026-03-08', 92], ['2026-11-01', 100]]) {
   assert.equal(trendPointLabel(dst.points.at(-1).timestamp, dst.endMs), 'End of day');
 }
 console.log('PASS confidence wording, same-endpoint scrub differences, missing-data guards, and end-of-day labels including DST.');
+
+// Mode-specific curves, not just mode-specific summary counts.
+const { comparisonLabel } = load(path.join(__dirname, '../lib/meter/daily-trend.ts'));
+const weekdays = get('weekdays'), weekends = get('weekends'), yesterday = get('yesterday');
+assert.ok(weekdays.dates.every(date => ![0, 6].includes(new Date(`${date}T12:00Z`).getUTCDay())));
+assert.ok(weekends.dates.every(date => [0, 6].includes(new Date(`${date}T12:00Z`).getUTCDay())));
+assert.ok(!weekends.dates.includes('2026-10-17')); // incomplete weekend excluded
+assert.equal(yesterday.count, 1); assert.deepEqual(yesterday.dates, ['2026-10-18']);
+assert.equal(yesterday.points[1].kwh, 18); assert.equal(yesterday.points.at(-1).kwh, 18 * 96);
+assert.equal(new Set([bill, seven, weekdays, weekends, yesterday].map(value => value.points[1].kwh)).size, 5);
+assert.equal(comparisonLabel('weekdays', 8, '2026-10-22'), 'Typical · median of 8 weekdays');
+assert.equal(comparisonLabel('weekends', 4, '2026-10-22'), 'Typical · median of 4 weekend days');
+assert.equal(comparisonLabel('bill', 6, '2026-10-22'), 'Typical · median of 6 complete days');
+assert.equal(comparisonLabel('yesterday', 1, '2026-10-22'), 'Yesterday · Oct 21');
+const previousRows = rows('2026-10-18', 96).filter((_, i) => i !== 2);
+const previousGappy = prepareTypicalDay(previousRows, '2026-10-19', baselineNow, typicalWindow('2026-10-19', 'yesterday', [], baselineNow));
+assert.equal(previousGappy.segments.length, 2);
+assert.equal(previousGappy.points.find(point => point.timestamp === selectedGraph.startMs + 3 * 900000), undefined);
+assert.equal(scrubDifference({ timestamp: selectedGraph.startMs + 4 * 900000, kwh: 2, afterGap: false }, previousGappy), null);
+assert.equal(previousGappy.points.at(-1).kwh, 47.5); // actual recorded total, no estimated missing usage
+console.log('PASS five distinct comparison curves, weekday/weekend complete-day filters, active labels, actual Yesterday curve/gaps, and exact-time scrub comparisons.');

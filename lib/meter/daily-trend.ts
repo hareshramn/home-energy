@@ -40,7 +40,7 @@ export function trendScale(peak: number) {
   return { max, ticks: Array.from({ length: Math.round(max / step) + 1 }, (_, i) => Number((i * step).toPrecision(12))) };
 }
 
-export type BaselineMode = 'bill' | '7' | '30';
+export type BaselineMode = 'bill' | '7' | '30' | 'weekdays' | 'weekends' | 'yesterday';
 
 /** Calendar window [start, selected date); a cycle begins at its latest saved start. */
 export function typicalWindow(selectedDate: string, mode: BaselineMode, cycleStarts: readonly string[] = [], now = new Date()) {
@@ -50,13 +50,16 @@ export function typicalWindow(selectedDate: string, mode: BaselineMode, cycleSta
     startDate = cycleStarts.filter(date => date <= selectedDate).sort().at(-1) ?? null;
   } else {
     startDate = selectedDate;
-    for (let i = 0; i < Number(mode); i++) startDate = adjacentMeterDate(startDate, -1, now);
+    for (let i = 0; i < (mode === 'yesterday' ? 1 : mode === 'weekdays' || mode === 'weekends' ? 30 : Number(mode)); i++) startDate = adjacentMeterDate(startDate, -1, now);
   }
-  return { startDate, endDate: selectedDate, start: startDate ? meterDayBounds(startDate).start : null, end: meterDayBounds(selectedDate).start };
+  return { mode, startDate, endDate: selectedDate, start: startDate ? meterDayBounds(startDate).start : null, end: meterDayBounds(selectedDate).start };
 }
 
+type ComparisonPoint = { timestamp: number; kwh: number; afterGap?: boolean };
+export type TypicalDay = { excludedDstDays: number; count: number; dates: string[]; points: ComparisonPoint[] | null; segments?: ComparisonPoint[][]; incomplete?: boolean };
+
 /** Require matching civil-day duration so DST intervals are never invented or folded. */
-export function prepareTypicalDay(readings: readonly CoverageReading[], selectedDate: string, now = new Date(), window = typicalWindow(selectedDate, '30', [], now)) {
+export function prepareTypicalDay(readings: readonly CoverageReading[], selectedDate: string, now = new Date(), window = typicalWindow(selectedDate, '30', [], now)): TypicalDay {
   const bounds = meterDayBounds(selectedDate);
   const duration = Date.parse(bounds.end) - Date.parse(bounds.start);
   const groups = new Map<string, CoverageReading[]>();
@@ -67,8 +70,22 @@ export function prepareTypicalDay(readings: readonly CoverageReading[], selected
     group.push(reading);
     groups.set(date, group);
   }
+  if (window.mode === 'yesterday') {
+    const date = window.startDate!;
+    const rows = groups.get(date) ?? [];
+    const coverage = analyzeMeterCoverage(rows, { startDate: date, endDate: date, now })[0];
+    if (coverage.dayIntervals * 900000 !== duration) return { excludedDstDays: 1, count: 0, dates: [], points: null };
+    const graph = prepareDailyTrend(rows, coverage);
+    const align = (point: ComparisonPoint) => ({ ...point, timestamp: Date.parse(bounds.start) + point.timestamp - graph.startMs });
+    const segments = graph.segments.map(segment => segment.map(align));
+    return { excludedDstDays: 0, count: graph.points.length ? 1 : 0, dates: graph.points.length ? [date] : [],
+      points: graph.points.length ? segments.flat() : null, segments, incomplete: graph.incomplete };
+  }
   let excludedDstDays = 0;
   const days = [...groups].sort(([a], [b]) => b.localeCompare(a)).flatMap(([date, rows]) => {
+    const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+    const weekend = weekday === 0 || weekday === 6;
+    if (window.mode === 'weekdays' && weekend || window.mode === 'weekends' && !weekend) return [];
     const coverage = analyzeMeterCoverage(rows, { startDate: date, endDate: date, now })[0];
     if (coverage.status !== 'complete' || coverage.isCurrentDay) return [];
     if (coverage.dayIntervals * 900000 !== duration) { excludedDstDays++; return []; }
@@ -88,14 +105,23 @@ export function prepareTypicalDay(readings: readonly CoverageReading[], selected
     })),
   ] };
 }
-export type TypicalDay = ReturnType<typeof prepareTypicalDay>;
+export function comparisonLabel(mode: BaselineMode, count: number, selectedDate: string) {
+  if (mode === 'yesterday') {
+    const previous = new Date(`${selectedDate}T12:00:00Z`);
+    previous.setUTCDate(previous.getUTCDate() - 1);
+    return `Yesterday · ${new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' }).format(previous)}`;
+  }
+  const unit = mode === 'weekdays' ? count === 1 ? 'weekday' : 'weekdays'
+    : mode === 'weekends' ? count === 1 ? 'weekend day' : 'weekend days' : count === 1 ? 'complete day' : 'complete days';
+  return `Typical · median of ${count} ${unit}`;
+}
 
 /** Only compare measured totals with a baseline at the exact completed endpoint. */
 export function typicalDifference(graph: DailyTrendGraph, coverage: DayCoverage, typical: TypicalDay | null) {
   if (coverage.status !== 'complete' || graph.total === null) return null;
   const latest = graph.points.at(-1);
   const reference = latest ? typical?.points?.find(point => point.timestamp === latest.timestamp) : null;
-  return reference ? graph.total - reference.kwh : null;
+  return reference && !reference.afterGap ? graph.total - reference.kwh : null;
 }
 
 export function baselineConfidence(count: number) {
@@ -115,5 +141,5 @@ export function trendPointLabel(timestamp: number, endMs: number) {
 export function scrubDifference(point: DailyTrendGraph['points'][number] | undefined, typical: TypicalDay | null) {
   if (!point || point.afterGap) return null;
   const reference = typical?.points?.find(candidate => candidate.timestamp === point.timestamp);
-  return reference ? point.kwh - reference.kwh : null;
+  return reference && !reference.afterGap ? point.kwh - reference.kwh : null;
 }
